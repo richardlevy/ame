@@ -47,11 +47,30 @@ python -c "import gi; print('ok')"                    # should print ok
 
 If you already made `.venv` without the flag, either delete it and recreate it as above (`deactivate && rm -rf .venv`), or set `include-system-site-packages = true` in `.venv/pyvenv.cfg` and re-activate.
 
-**Display corruption:** WebKitGTK's GPU rendering garbles the window on the Pi. When `main.py` detects a Raspberry Pi, it sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` and `WEBKIT_DISABLE_COMPOSITING_MODE=1` to fall back to software rendering. On other Linux machines with the same problem, set them yourself, e.g. `WEBKIT_DISABLE_COMPOSITING_MODE=1 python main.py`.
+**Display corruption:** with WebKitGTK's default DMA-BUF renderer, the window shows a corrupted screen on the Pi once a folder loads. The fix is `WEBKIT_DISABLE_DMABUF_RENDERER=1`, and `main.py` sets it automatically when it detects a Raspberry Pi, so a plain `python main.py` works.
+
+- On other Linux machines with the same symptom, set it yourself: `WEBKIT_DISABLE_DMABUF_RENDERER=1 python main.py`.
+- If that alone doesn't fix it, also try `WEBKIT_DISABLE_COMPOSITING_MODE=1`. This turns off GPU compositing entirely.
+- To turn the Pi default off, run `WEBKIT_DISABLE_DMABUF_RENDERER=0 python main.py`.
 
 Then build the UI as normal (`cd ui && npm install && npm run build`). If that's slow on an older Pi, build `ui/dist` on another machine and copy the folder across.
 
 ## Run
+
+The simplest way, on the Pi or the Mac:
+
+```bash
+./ame.sh                       # asks for a folder
+./ame.sh ~/Music/SomeAlbum     # opens that folder
+```
+
+`ame.sh` works from any directory and doesn't need the venv activated. Before launching, it:
+- creates `.venv` if it's missing (with `--system-site-packages` on Linux), and reinstalls Python packages when `requirements.txt` changes
+- rebuilds the UI when `ui/dist` is missing or older than the UI source, so `git pull` then `./ame.sh` is all an update needs
+
+To run it as `ame` from anywhere: `ln -s ~/Development/python/ame/ame.sh ~/.local/bin/ame` (with `~/.local/bin` on your `PATH`).
+
+Or run it by hand:
 
 ```bash
 source .venv/bin/activate
