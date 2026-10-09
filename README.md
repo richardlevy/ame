@@ -19,6 +19,38 @@ npm run build        # outputs ui/dist, which main.py loads
 cd ..
 ```
 
+### Raspberry Pi (Raspberry Pi OS)
+
+ame opens a window, so it needs the Pi desktop rather than a headless/Lite install.
+
+**Node and npm:** the NodeSource packages are newer than Raspberry Pi OS's own. They work on 64-bit Raspberry Pi OS and on 32-bit Pi 2 or newer, but not on the original Pi Zero or Pi 1 (ARMv6).
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v && npm -v
+```
+
+`sudo apt install -y nodejs npm` (Node 18 on Bookworm) also works if you'd rather stick to the distro packages.
+
+**pywebview's GUI libraries:** on Linux, pywebview uses the system's GTK and WebKit, which come from apt, not pip. Install them, then create the venv with `--system-site-packages` so it can see them:
+
+```bash
+sudo apt install -y python3-gi gir1.2-webkit2-4.1    # gir1.2-webkit2-4.0 on older releases
+
+cd ~/Development/python/ame
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -c "import gi; print('ok')"                    # should print ok
+```
+
+If you already made `.venv` without the flag, either delete it and recreate it as above (`deactivate && rm -rf .venv`), or set `include-system-site-packages = true` in `.venv/pyvenv.cfg` and re-activate.
+
+**Display corruption:** WebKitGTK's GPU rendering garbles the window on the Pi. When `main.py` detects a Raspberry Pi, it sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` and `WEBKIT_DISABLE_COMPOSITING_MODE=1` to fall back to software rendering. On other Linux machines with the same problem, set them yourself, e.g. `WEBKIT_DISABLE_COMPOSITING_MODE=1 python main.py`.
+
+Then build the UI as normal (`cd ui && npm install && npm run build`). If that's slow on an older Pi, build `ui/dist` on another machine and copy the folder across.
+
 ## Run
 
 ```bash

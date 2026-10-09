@@ -10,7 +10,23 @@ import argparse
 import os
 import sys
 
-import webview
+
+def _is_raspberry_pi() -> bool:
+    try:
+        with open("/proc/device-tree/model", encoding="utf-8", errors="ignore") as f:
+            return "Raspberry Pi" in f.read()
+    except OSError:
+        return False
+
+
+# WebKitGTK's GPU rendering draws a corrupted window on the Pi's graphics stack.
+# Fall back to software rendering there. Must be set before WebKit loads.
+# Override by setting either variable yourself (e.g. =0).
+if sys.platform.startswith("linux") and _is_raspberry_pi():
+    os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
+    os.environ.setdefault("WEBKIT_DISABLE_COMPOSITING_MODE", "1")
+
+import webview  # noqa: E402  (after the env vars above)
 
 from ame.api import Api
 
