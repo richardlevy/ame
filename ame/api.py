@@ -7,11 +7,13 @@ Attributes starting with ``_`` are not exposed.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import traceback
 from typing import Any
 
+from . import art as ar
 from . import rename as rn
 from . import tags as tg
 
@@ -187,6 +189,94 @@ class Api:
         errors = rn.apply_renames(directory, clean)
         return [{"file": old, "newName": new, "ok": errors[old] is None, "error": errors[old]} for old, new in clean]
 
+    # ------------------------------------------------------------ cover art
+
+    def art_albums(self, directory: str, files: list[dict[str, str]]) -> list[dict[str, Any]]:
+        """Group files by album/album artist: [{id, album, artist, mbid, files: [{format, file, hasArt}]}]"""
+        return ar.group_albums(directory, files)
+
+    def art_search(self, album: str, artist: str, mbid: str = "") -> dict[str, Any]:
+        """-> {candidates: [{source, title, artist, year, detail, thumb, url, original}], errors: [str]}"""
+        return ar.search(album, artist, mbid)
+
+    def art_current(self, directory: str, fmt: str, name: str) -> str | None:
+        """Embedded art of one file as a small data: URL, or None."""
+        return ar.art_thumbnail(fmt, os.path.join(directory, _check_name(name)))
+
+    def art_choose_file(self) -> dict[str, Any] | None:
+        """Pick a local image -> {url, thumb, width, height} or None if cancelled."""
+        import webview
+
+        open_dialog = getattr(getattr(webview, "FileDialog", None), "OPEN", None)
+        if open_dialog is None:  # pywebview < 5
+            open_dialog = webview.OPEN_DIALOG
+        result = self._window.create_file_dialog(
+            open_dialog, file_types=("Images (*.jpg;*.jpeg;*.png;*.webp)", "All files (*.*)"))
+        if not result:
+            return None
+        path = result[0] if isinstance(result, (list, tuple)) else result
+        return self.art_preview_local(path)
+
+    def art_preview_local(self, path: str) -> dict[str, Any]:
+        with open(path, "rb") as f:
+            raw = f.read()
+        _, _, w, h = ar.prepare_image(raw, None)
+        thumb, mime, _, _ = ar.prepare_image(raw, 250)
+        return {"url": "file://" + os.path.abspath(path), "width": w, "height": h,
+                "thumb": f"data:{mime};base64,{base64.b64encode(thumb).decode()}"}
+
+    def art_apply(self, directory: str, request: dict[str, Any]) -> dict[str, Any]:
+        """request: {url, original?, files: [{format, file}], embed, folderFile, maxSize, replace}
+
+        Downloads the image (falling back to ``original`` if ``url`` fails), resizes it to fit
+        within maxSize x maxSize when larger (maxSize 0/None keeps the original size),
+        embeds it in the files and/or writes it into the folder as ``folderFile``.
+        -> {embedded, skipped, folderFile, width, height, errors: [str]}
+        """
+        max_size = int(request.get("maxSize") or 0) or None
+        url = request["url"]
+        # for "keep original size" prefer the full-size source when there is one
+        urls = [request.get("original") or url, url] if not max_size else [url, request.get("original")]
+        raw, last_error = None, None
+        for u in [u for u in urls if u]:
+            try:
+                if u.startswith("file://"):
+                    with open(u[len("file://"):], "rb") as f:
+                        raw = f.read()
+                else:
+                    raw = ar.download(u)
+                break
+            except (ar.ArtError, OSError) as e:
+                last_error = e
+        if raw is None:
+            raise ar.ArtError(f"Couldn't download the image: {last_error}")
+        data, mime, w, h = ar.prepare_image(raw, max_size)
+
+        result: dict[str, Any] = {"embedded": 0, "skipped": 0, "folderFile": None, "width": w, "height": h, "errors": []}
+        if request.get("embed"):
+            for f in request.get("files", []):
+                try:
+                    path = os.path.join(directory, _check_name(f["file"]))
+                    if ar.embed_art(f["format"], path, data, mime, w, h, bool(request.get("replace"))):
+                        result["embedded"] += 1
+                    else:
+                        result["skipped"] += 1
+                except Exception as e:
+                    traceback.print_exc()
+                    result["errors"].append(f"{f['file']}: {e}")
+        folder_file = (request.get("folderFile") or "").strip()
+        if folder_file:
+            stem = os.path.splitext(_check_name(folder_file))[0]
+            name = stem + ".jpg"
+            path = os.path.join(directory, name)
+            if os.path.exists(path) and not request.get("replace"):
+                result["errors"].append(f"{name} already exists (tick 'Replace existing art' to overwrite)")
+            else:
+                with open(path, "wb") as f:
+                    f.write(data)
+                result["folderFile"] = name
+        return result
+
     # ------------------------------------------------------------ internals
 
     @staticmethod
@@ -197,6 +287,7 @@ class Api:
     def _row(fmt: str, directory: str, name: str) -> dict[str, Any]:
         path = os.path.join(directory, name)
         try:
-            return {"file": name, "tags": tg.read_tags(fmt, path), "length": tg.read_length(fmt, path)}
+            return {"file": name, "tags": tg.read_tags(fmt, path), "length": tg.read_length(fmt, path),
+                    "hasArt": ar.has_art(fmt, path)}
         except Exception as e:
             return {"file": name, "tags": {}, "length": None, "error": f"Couldn't read tags: {e}"}

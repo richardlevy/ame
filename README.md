@@ -2,7 +2,7 @@
 
 Edit the tags of every mp3, m4a (AAC) and flac file in a folder in editable tables, then save one file, one table or everything. Files can also be renamed from their tags.
 
-- **Backend:** Python + [mutagen](https://mutagen.readthedocs.io/)
+- **Backend:** Python + [mutagen](https://mutagen.readthedocs.io/), [Pillow](https://python-pillow.org/) for resizing cover art
 - **UI:** React + TypeScript + [AG Grid](https://www.ag-grid.com/) (community), in a native window via [pywebview](https://pywebview.flowrl.com/)
 
 ## Setup
@@ -68,7 +68,13 @@ The simplest way, on the Pi or the Mac:
 - creates `.venv` if it's missing (with `--system-site-packages` on Linux), and reinstalls Python packages when `requirements.txt` changes
 - rebuilds the UI when `ui/dist` is missing or older than the UI source, so `git pull` then `./ame.sh` is all an update needs
 
-To run it as `ame` from anywhere: `ln -s ~/Development/python/ame/ame.sh ~/.local/bin/ame` (with `~/.local/bin` on your `PATH`).
+To run it as `ame` from anywhere, run this from inside your clone (wherever it lives), with `~/.local/bin` on your `PATH`:
+
+```bash
+mkdir -p ~/.local/bin
+ln -sf "$PWD/ame.sh" ~/.local/bin/ame
+hash -r
+```
 
 Or run it by hand:
 
@@ -98,7 +104,14 @@ python main.py --dev                 # terminal 2: app window loads the dev serv
 - **Add column** adds any tag: type a common name (`Composer`, `BPM`, `Album Artist`) or a native key. Unknown names become `TXXX:<name>` (mp3), `----:com.apple.iTunes:<name>` (m4a) or an upper-cased Vorbis field (flac).
 - **Rename files…** builds names from a pattern, e.g. `{track:02} - {artist} - {title}`. You get a live preview with conflict detection, and the extension is always kept. Save any edits first, because renaming reads the tags stored on disk. The last pattern is remembered in `~/.config/ame/settings.json`.
 
-Artwork and other binary frames (APIC, covr, PRIV…) are left untouched and aren't shown.
+- **Fetch Cover Art** groups the folder's files by album and album artist, then searches MusicBrainz / Cover Art Archive and iTunes. It shows candidate covers for each album; click one to select it. A MusicBrainz Album Id tag gives an exact match. If nothing fits, edit the search terms or use **Choose image…** to pick a local file. The options are remembered between sessions:
+  - **Embed in audio files**: writes the image as the front cover (APIC / covr / FLAC picture).
+  - **Save in folder as** `cover.jpg`: available when you've selected a cover for just one album, since the folder can only hold one.
+  - **Resize to at most** 500 × 500 px (the default): larger images are scaled down, keeping the aspect ratio. Untick it to keep the original size.
+  - **Replace existing art**: off by default, so files that already have art (and an existing `cover.jpg`) are left alone.
+- **The Art column** shows which files have embedded cover art.
+
+Tag editing never touches embedded artwork or other binary frames (PRIV, GEOB…). Cover Art is the only feature that changes artwork. It needs internet access; MusicBrainz is limited to one request per second, so a folder with several albums takes a few seconds to search.
 
 ## Layout
 
@@ -107,9 +120,11 @@ main.py              entry point: argument parsing, pywebview window
 ame/api.py           Api class exposed to JS as window.pywebview.api
 ame/tags.py          mutagen read/write per format, column labels, key normalising
 ame/rename.py        pattern → filename, safe batch rename (handles swaps)
+ame/art.py           cover art search (MusicBrainz/CAA, iTunes), resize, embed
 ui/src/App.tsx       folder loading, tabs, save/revert orchestration
 ui/src/FormatTable.tsx   AG Grid table for one format
 ui/src/RenameDialog.tsx  rename-from-tags dialog
+ui/src/CoverArtDialog.tsx  fetch cover art dialog
 ui/src/model.ts      edit/dirty tracking
 ui/src/api.ts        typed bridge to Python + browser mock
 ```

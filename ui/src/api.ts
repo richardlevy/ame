@@ -13,6 +13,7 @@ export interface FileRow {
   file: string;
   tags: Record<string, string>;
   length: number | null;
+  hasArt?: boolean;
   error?: string;
 }
 
@@ -60,7 +61,52 @@ export interface RenameResult {
   error: string | null;
 }
 
+export interface ArtAlbum {
+  id: string;
+  album: string;
+  artist: string;
+  mbid: string;
+  files: { format: Format; file: string; hasArt: boolean }[];
+}
+
+export interface ArtCandidate {
+  source: string;
+  title: string;
+  artist: string;
+  year: string;
+  detail: string;
+  thumb: string;
+  url: string;
+  original?: string;
+  width?: number;
+  height?: number;
+}
+
+export interface ArtApplyRequest {
+  url: string;
+  original?: string;
+  files: { format: Format; file: string }[];
+  embed: boolean;
+  folderFile: string;
+  maxSize: number; // 0 = keep original size
+  replace: boolean;
+}
+
+export interface ArtApplyResult {
+  embedded: number;
+  skipped: number;
+  folderFile: string | null;
+  width: number;
+  height: number;
+  errors: string[];
+}
+
 export interface AmeApi {
+  art_albums(directory: string, files: { format: Format; file: string }[]): Promise<ArtAlbum[]>;
+  art_search(album: string, artist: string, mbid: string): Promise<{ candidates: ArtCandidate[]; errors: string[] }>;
+  art_current(directory: string, format: Format, file: string): Promise<string | null>;
+  art_choose_file(): Promise<{ url: string; thumb: string; width: number; height: number } | null>;
+  art_apply(directory: string, request: ArtApplyRequest): Promise<ArtApplyResult>;
   get_setting<T>(key: string, fallback: T): Promise<T>;
   set_setting(key: string, value: unknown): Promise<void>;
   initial_directory(): Promise<string | null>;
@@ -137,7 +183,37 @@ function mockApi(): AmeApi {
   const find = (file: string) => db.tables.flatMap((t) => t.rows).find((r) => r.file === file);
   const delay = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(structuredClone(v)), 150));
   const settings: Record<string, unknown> = {};
+  const swatch = (hue: number) =>
+    `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="250" height="250"><rect width="250" height="250" fill="hsl(${hue} 55% 45%)"/><circle cx="125" cy="125" r="70" fill="hsl(${hue} 60% 70%)"/></svg>`)}`;
   return {
+    art_albums: (_d, files) => {
+      const groups = new Map<string, ArtAlbum>();
+      for (const f of files) {
+        const r = find(f.file)!;
+        const album = r.tags.TALB ?? r.tags.ALBUM ?? "";
+        const artist = r.tags.TPE2 ?? r.tags.TPE1 ?? r.tags.ARTIST ?? "";
+        const key = `${album}|${artist}`;
+        if (!groups.has(key)) groups.set(key, { id: String(groups.size), album, artist, mbid: "", files: [] });
+        groups.get(key)!.files.push({ ...f, hasArt: !!r.hasArt });
+      }
+      return delay([...groups.values()]);
+    },
+    art_search: (album, artist) =>
+      new Promise((r) => setTimeout(() => r({
+        candidates: album ? [
+          { source: "Cover Art Archive", title: album, artist, year: "2019", detail: "Album", thumb: swatch(200), url: "mock://1" },
+          { source: "Cover Art Archive", title: `${album} (Deluxe)`, artist, year: "2020", detail: "Album", thumb: swatch(320), url: "mock://2" },
+          { source: "iTunes", title: album, artist, year: "2019", detail: "12 tracks", thumb: swatch(30), url: "mock://3" },
+        ] : [],
+        errors: [],
+      }), 700)),
+    art_current: (_d, _f, file) => delay(find(file)?.hasArt ? swatch(120) : null),
+    art_choose_file: () => delay({ url: "file:///mock.jpg", thumb: swatch(270), width: 1400, height: 1400 }),
+    art_apply: (_d, req) => {
+      for (const f of req.files) if (req.embed) find(f.file)!.hasArt = true;
+      const size = req.maxSize || 1200;
+      return delay({ embedded: req.embed ? req.files.length : 0, skipped: 0, folderFile: req.folderFile || null, width: size, height: size, errors: [] });
+    },
     get_setting: <T,>(key: string, fallback: T) => delay((settings[key] ?? fallback) as T),
     set_setting: async (key, value) => void (settings[key] = value),
     initial_directory: () => delay(null),

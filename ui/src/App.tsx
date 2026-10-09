@@ -3,6 +3,7 @@ import { colorSchemeDarkBlue, colorSchemeLight, themeQuartz, type GridApi } from
 import { getApi, type AmeApi, type Format } from "./api";
 import { FormatTable } from "./FormatTable";
 import { RenameDialog } from "./RenameDialog";
+import { CoverArtDialog } from "./CoverArtDialog";
 import { applySaved, changeFor, dirtyRows, isDirty, revert, toTableState, type EditRow, type TableState } from "./model";
 
 interface Toast {
@@ -31,6 +32,7 @@ export default function App() {
   const [active, setActive] = useState<Format | null>(null);
   const [loading, setLoading] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [artOpen, setArtOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [, setVersion] = useState(0); // bumped after in-place edits to re-render counts
   const grids = useRef<Partial<Record<Format, GridApi<EditRow>>>>({});
@@ -206,6 +208,7 @@ export default function App() {
         >
           Reload
         </button>
+        <button onClick={() => setArtOpen(true)} disabled={!activeTable}>Fetch Cover Art</button>
         <button onClick={() => setRenameOpen(true)} disabled={!activeTable}>Rename files…</button>
         <button className="primary" onClick={saveAll} disabled={!unsavedCount} title="Save every table (⌘S)">
           Save all{unsavedCount ? ` (${unsavedCount})` : ""}
@@ -274,6 +277,26 @@ export default function App() {
             setRenameOpen(false);
             await load(directory);
             toast(msg, msg.includes("failed") ? "error" : "info");
+          }}
+        />
+      )}
+
+      {artOpen && api && directory && (
+        <CoverArtDialog
+          api={api}
+          directory={directory}
+          tables={tables}
+          unsavedCount={unsavedCount}
+          onClose={() => setArtOpen(false)}
+          onApplied={(files, msg, isError) => {
+            const set = new Set(files);
+            for (const t of tables) {
+              let changed = false;
+              for (const r of t.rows) if (set.has(r.orig.file)) (r.hasArt = true), (changed = true);
+              if (changed) grids.current[t.format]?.refreshCells({ columns: ["_art"], force: true });
+            }
+            bump();
+            toast(msg, isError ? "error" : "info");
           }}
         />
       )}

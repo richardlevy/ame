@@ -6,6 +6,7 @@ export interface EditRow {
   file: string;
   tags: Record<string, string>;
   length: number | null;
+  hasArt: boolean;
   error?: string; // couldn't read the file
   saveError?: string; // last save failed
   orig: { file: string; tags: Record<string, string> };
@@ -35,6 +36,7 @@ function fromFileRow(id: string, r: FileRow): EditRow {
     file: r.file,
     tags: { ...r.tags },
     length: r.length,
+    hasArt: !!r.hasArt,
     error: r.error,
     orig: { file: r.file, tags: { ...r.tags } },
   };
@@ -45,6 +47,7 @@ export function applySaved(row: EditRow, saved: FileRow) {
   row.file = saved.file;
   row.tags = { ...saved.tags };
   row.length = saved.length;
+  row.hasArt = !!saved.hasArt;
   row.error = saved.error;
   row.saveError = undefined;
   row.orig = { file: saved.file, tags: { ...saved.tags } };

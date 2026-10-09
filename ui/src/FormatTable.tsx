@@ -125,7 +125,17 @@ export function FormatTable({ table, theme, visible, onGridReady, onEdited, onSa
       valueFormatter: (p) => formatLength(p.value),
       cellClass: "muted",
     };
-    return [status, file, ...tags, length];
+    const art: ColDef<EditRow> = {
+      colId: "_art",
+      headerName: "Art",
+      headerTooltip: "Embedded cover art (use Fetch Cover Art to add it)",
+      initialWidth: 80,
+      editable: false,
+      valueGetter: (p) => (p.data?.hasArt ? "Yes" : ""),
+      valueFormatter: (p) => p.value || "[none]",
+      cellClassRules: { "not-set": (p) => !p.data?.hasArt },
+    };
+    return [status, file, ...tags, length, art];
   }, [table.columns]);
 
   const api = () => gridRef.current?.api;
