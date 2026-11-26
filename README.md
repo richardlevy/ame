@@ -109,6 +109,12 @@ python main.py --dev                 # terminal 2: app window loads the dev serv
   - **Save in folder as** `cover.jpg`: available when you've selected a cover for just one album, since the folder can only hold one.
   - **Resize to at most** 500 × 500 px (the default): larger images are scaled down, keeping the aspect ratio. Untick it to keep the original size.
   - **Replace existing art**: off by default, so files that already have art (and an existing `cover.jpg`) are left alone.
+- **Convert to MP3…** (FLAC tab) converts the selected FLAC files, or all of them if none are selected, using ffmpeg. You can also tick and untick individual files in the dialog. Options are remembered between sessions:
+  - **Quality**: VBR V0 (the default, ~245 kbps), VBR V2, or CBR 320/256/192 kbps.
+  - **Where**: next to the FLACs, or in a subfolder (default `MP3`).
+  - **Overwrite existing MP3s**: off by default, so existing MP3s are skipped.
+
+  Tags are copied by ame and mapped to their ID3 equivalents (track/disc totals become `3/12`, MusicBrainz ids go where Picard puts them, anything else becomes a TXXX frame), along with the embedded cover art. MP3s are written as ID3v2.3 for the widest player support. Conversion uses the tags saved in the FLAC, so save edits first. The FLACs are never changed or deleted. Needs **ffmpeg** with the LAME encoder: `brew install ffmpeg` on macOS, `sudo apt install ffmpeg` on Raspberry Pi OS.
 - **The Art column** shows which files have embedded cover art.
 
 Tag editing never touches embedded artwork or other binary frames (PRIV, GEOB…). Cover Art is the only feature that changes artwork. It needs internet access; MusicBrainz is limited to one request per second, so a folder with several albums takes a few seconds to search.
@@ -121,10 +127,12 @@ ame/api.py           Api class exposed to JS as window.pywebview.api
 ame/tags.py          mutagen read/write per format, column labels, key normalising
 ame/rename.py        pattern → filename, safe batch rename (handles swaps)
 ame/art.py           cover art search (MusicBrainz/CAA, iTunes), resize, embed
+ame/convert.py       FLAC → MP3 via ffmpeg, Vorbis → ID3 tag mapping
 ui/src/App.tsx       folder loading, tabs, save/revert orchestration
 ui/src/FormatTable.tsx   AG Grid table for one format
 ui/src/RenameDialog.tsx  rename-from-tags dialog
 ui/src/CoverArtDialog.tsx  fetch cover art dialog
+ui/src/ConvertDialog.tsx   FLAC → MP3 conversion dialog
 ui/src/model.ts      edit/dirty tracking
 ui/src/api.ts        typed bridge to Python + browser mock
 ```

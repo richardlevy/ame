@@ -101,7 +101,31 @@ export interface ArtApplyResult {
   errors: string[];
 }
 
+export interface ConvertInfo {
+  available: boolean;
+  version?: string;
+  message?: string;
+  qualities: { id: string; label: string }[];
+}
+
+export interface ConvertOptions {
+  quality: string;
+  destination: "same" | "subfolder";
+  subfolder: string;
+  overwrite: boolean;
+}
+
+export interface ConvertResult {
+  file: string;
+  status: "converted" | "exists" | "error";
+  output: string;
+  message: string;
+  seconds?: number;
+}
+
 export interface AmeApi {
+  convert_info(): Promise<ConvertInfo>;
+  convert_flac(directory: string, file: string, options: ConvertOptions): Promise<ConvertResult>;
   art_albums(directory: string, files: { format: Format; file: string }[]): Promise<ArtAlbum[]>;
   art_search(album: string, artist: string, mbid: string): Promise<{ candidates: ArtCandidate[]; errors: string[] }>;
   art_current(directory: string, format: Format, file: string): Promise<string | null>;
@@ -186,6 +210,23 @@ function mockApi(): AmeApi {
   const swatch = (hue: number) =>
     `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="250" height="250"><rect width="250" height="250" fill="hsl(${hue} 55% 45%)"/><circle cx="125" cy="125" r="70" fill="hsl(${hue} 60% 70%)"/></svg>`)}`;
   return {
+    convert_info: () =>
+      delay({
+        available: true,
+        version: "mock",
+        qualities: [
+          { id: "v0", label: "VBR V0 (~245 kbps, best)" },
+          { id: "v2", label: "VBR V2 (~190 kbps)" },
+          { id: "320", label: "CBR 320 kbps" },
+        ],
+      }),
+    convert_flac: (_d, file, opts) =>
+      new Promise((r) =>
+        setTimeout(() => {
+          const out = file.replace(/\.flac$/i, ".mp3");
+          r({ file, status: "converted", output: opts.destination === "subfolder" ? `${opts.subfolder}/${out}` : out, message: "", seconds: 0.8 });
+        }, 800),
+      ),
     art_albums: (_d, files) => {
       const groups = new Map<string, ArtAlbum>();
       for (const f of files) {

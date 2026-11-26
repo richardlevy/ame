@@ -21,6 +21,7 @@ interface Props {
   onSave(rows: EditRow[]): void;
   onRevert(rows: EditRow[]): void;
   onAddColumn(name: string): Promise<boolean>;
+  onConvert?(selectedFiles: string[]): void; // FLAC tables only
 }
 
 // Grid options are module constants: if they were recreated on each render, AG Grid
@@ -33,7 +34,7 @@ const getRowId = (p: GetRowIdParams<EditRow>) => p.data.id;
 
 const LONG_TEXT = /^(USLT|COMM)|LYRICS|COMMENT|DESCRIPTION|©lyr|©cmt|^desc$/i;
 
-export function FormatTable({ table, theme, visible, onGridReady, onEdited, onSave, onRevert, onAddColumn }: Props) {
+export function FormatTable({ table, theme, visible, onGridReady, onEdited, onSave, onRevert, onAddColumn, onConvert }: Props) {
   const gridRef = useRef<AgGridReact<EditRow>>(null);
   const [quickFilter, setQuickFilter] = useState("");
   const [newTag, setNewTag] = useState("");
@@ -51,7 +52,8 @@ export function FormatTable({ table, theme, visible, onGridReady, onEdited, onSa
   const columnDefs = useMemo<ColDef<EditRow>[]>(() => {
     const status: ColDef<EditRow> = {
       colId: "_status",
-      headerName: "",
+      headerName: "Changes",
+      headerTooltip: "Save or revert an edited file",
       initialWidth: 112,
       pinned: "left",
       editable: false,
@@ -70,9 +72,7 @@ export function FormatTable({ table, theme, visible, onGridReady, onEdited, onSa
                 <button className="mini primary" title="Save this file" onClick={() => handlers.current.onSave([row])}>Save</button>
                 <button className="mini" title="Revert this file" onClick={() => handlers.current.onRevert([row])}>↺</button>
               </>
-            ) : (
-              !row.saveError && <span className="saved-dot" title="No unsaved changes" />
-            )}
+            ) : null}
           </span>
         );
       },
@@ -247,6 +247,14 @@ export function FormatTable({ table, theme, visible, onGridReady, onEdited, onSa
             </div>
           )}
         </div>
+        {onConvert && (
+          <button
+            onClick={() => onConvert((api()?.getSelectedRows() ?? []).map((r) => r.orig.file))}
+            title="Convert the selected FLAC files (or all of them) to MP3"
+          >
+            Convert to MP3{selectedCount ? ` (${selectedCount})` : ""}…
+          </button>
+        )}
         <div className="spacer" />
         <button disabled={!dirtyCount} onClick={() => onRevert(table.rows.filter(isDirty))}>Revert table</button>
         <button className="primary" disabled={!dirtyCount} onClick={() => onSave(table.rows.filter(isDirty))}>

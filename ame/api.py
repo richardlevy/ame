@@ -14,6 +14,7 @@ import traceback
 from typing import Any
 
 from . import art as ar
+from . import convert as cv
 from . import rename as rn
 from . import tags as tg
 
@@ -276,6 +277,32 @@ class Api:
                     f.write(data)
                 result["folderFile"] = name
         return result
+
+    # ------------------------------------------------------------ FLAC -> MP3
+
+    def convert_info(self) -> dict[str, Any]:
+        """-> {available, version?, message?, qualities: [{id, label}]}"""
+        info = cv.ffmpeg_info()
+        info["qualities"] = [{"id": k, "label": label} for k, (_, label) in cv.QUALITY.items()]
+        return info
+
+    def convert_flac(self, directory: str, name: str, options: dict[str, Any]) -> dict[str, Any]:
+        """Convert one FLAC file to MP3.
+
+        options: {quality, destination: "same"|"subfolder", subfolder, overwrite}
+        -> {file, status: converted|exists|error, output (relative to directory), message, seconds}
+        """
+        try:
+            src = os.path.join(directory, _check_name(name))
+            if tg.format_for(name) != "flac":
+                raise cv.ConvertError("Not a FLAC file")
+            dst = cv.output_path(directory, name, options.get("destination", "same"), options.get("subfolder", "MP3"))
+            res = cv.convert_file(src, dst, options.get("quality", cv.DEFAULT_QUALITY), bool(options.get("overwrite")))
+            res["output"] = os.path.relpath(res["output"], directory)
+            return {"file": name, "message": "", **res}
+        except Exception as e:
+            traceback.print_exc()
+            return {"file": name, "status": "error", "output": "", "message": str(e)}
 
     # ------------------------------------------------------------ internals
 

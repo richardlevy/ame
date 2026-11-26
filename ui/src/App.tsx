@@ -4,6 +4,7 @@ import { getApi, type AmeApi, type Format } from "./api";
 import { FormatTable } from "./FormatTable";
 import { RenameDialog } from "./RenameDialog";
 import { CoverArtDialog } from "./CoverArtDialog";
+import { ConvertDialog } from "./ConvertDialog";
 import { applySaved, changeFor, dirtyRows, isDirty, revert, toTableState, type EditRow, type TableState } from "./model";
 
 interface Toast {
@@ -33,6 +34,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [artOpen, setArtOpen] = useState(false);
+  const [convertFiles, setConvertFiles] = useState<string[] | null>(null); // null = dialog closed
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [, setVersion] = useState(0); // bumped after in-place edits to re-render counts
   const grids = useRef<Partial<Record<Format, GridApi<EditRow>>>>({});
@@ -261,6 +263,7 @@ export default function App() {
               onSave={(rows) => saveAndReport(t.format, rows)}
               onRevert={(rows) => revertRows(t.format, rows)}
               onAddColumn={(name) => addColumn(t.format, name)}
+              onConvert={t.format === "flac" ? (files) => setConvertFiles(files) : undefined}
             />
           ))}
       </main>
@@ -277,6 +280,27 @@ export default function App() {
             setRenameOpen(false);
             await load(directory);
             toast(msg, msg.includes("failed") ? "error" : "info");
+          }}
+        />
+      )}
+
+      {convertFiles && api && directory && (
+        <ConvertDialog
+          api={api}
+          directory={directory}
+          rows={tables.find((t) => t.format === "flac")?.rows ?? []}
+          initiallySelected={convertFiles}
+          onClose={(converted, sameFolder) => {
+            setConvertFiles(null);
+            if (!converted) return;
+            const what = `Converted ${converted} file${converted === 1 ? "" : "s"} to MP3`;
+            if (sameFolder && !unsavedCount) {
+              load(directory).then(() => toast(what));
+            } else if (sameFolder) {
+              toast(`${what}. Reload to see them (you have unsaved changes, so the folder wasn't re-read).`);
+            } else {
+              toast(`${what} in a subfolder. Use Open folder… to edit them.`);
+            }
           }}
         />
       )}

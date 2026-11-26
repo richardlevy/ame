@@ -184,7 +184,6 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px c
 
 .row-actions { display: inline-flex; align-items: center; gap: 4px; height: 100%; }
 button.mini { padding: 0 7px; font-size: 11px; line-height: 20px; border-radius: 4px; }
-.saved-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); display: inline-block; margin-left: 4px; }
 
 .badge {
   display: inline-block;
@@ -301,6 +300,16 @@ button.mini { padding: 0 7px; font-size: 11px; line-height: 20px; border-radius:
 .art-options label { display: flex; align-items: center; gap: 6px; }
 input.small { width: 90px; padding: 3px 6px; }
 .modal footer .push-left { margin-right: auto; align-self: center; }
+
+/* ---------- convert */
+
+.convert-modal { width: min(1000px, calc(100vw - 48px)); }
+.convert-options { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; }
+.convert-options label { display: flex; align-items: center; gap: 6px; }
+.preview .check-col { width: 30px; }
+.progress { display: flex; align-items: center; gap: 12px; }
+.progress-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; }
+.progress-bar > div { height: 100%; background: var(--accent); transition: width 0.2s; }
 
 /* ---------- toasts */
 
